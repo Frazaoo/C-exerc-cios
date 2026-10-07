@@ -1,22 +1,24 @@
-'use strict';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {
+  getFirestore, collection, doc, onSnapshot, runTransaction, updateDoc, deleteDoc,
+  writeBatch, serverTimestamp,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { firebaseConfig } from './firebase-config.js';
 
-// ---------- Armazenamento ----------
-const STORAGE_KEY = 'cautelas.v1';
+// ---------- Firebase ----------
+// Os dados ficam no Firestore e são sincronizados em tempo real entre todos os computadores.
+const configurado = firebaseConfig && firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('COLE');
+const app = configurado ? initializeApp(firebaseConfig) : null;
+const auth = app && getAuth(app);
+const db = app && getFirestore(app);
+const colecao = db && collection(db, 'cautelas');
+const contador = db && doc(db, 'contadores', 'cautelas');
 
-function carregar() {
-  try {
-    const dados = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return Array.isArray(dados) ? dados : [];
-  } catch {
-    return [];
-  }
-}
-
-function salvar() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cautelas));
-}
-
-let cautelas = carregar();
+let cautelas = [];
+let pararEscuta = null;
 
 // ---------- Datas (sempre "AAAA-MM-DD", sem fuso horário) ----------
 const pad = (n) => String(n).padStart(2, '0');
@@ -34,14 +36,6 @@ function status(c) {
   return 'ativa';
 }
 const ROTULO_STATUS = { ativa: 'Ativa', atrasada: 'Atrasada', devolvida: 'Devolvida' };
-
-function proximoNumero() {
-  return cautelas.reduce((max, c) => Math.max(max, c.numero || 0), 0) + 1;
-}
-
-function novoId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
 
 // Eventos exibidos no calendário para um dia específico.
 function eventosDoDia(iso) {
@@ -229,13 +223,51 @@ function abrirModal(cautela = null, dataPadrao = null) {
 }
 
 function atualizarTudo() {
-  salvar();
   renderStats();
   renderCalendario();
   renderLista();
 }
 
-form.addEventListener('submit', (e) => {
+// Executa uma gravação no Firestore mostrando o estado na barra superior.
+async function gravar(acao) {
+  const sync = $('#sync');
+  sync.className = 'sync salvando';
+  sync.textContent = '● Salvando…';
+  try {
+    await acao();
+    sync.className = 'sync';
+    sync.textContent = '● Online';
+    return true;
+  } catch (err) {
+    console.error(err);
+    sync.className = 'sync offline';
+    sync.textContent = '● Erro ao salvar';
+    alert(`Não foi possível salvar: ${err.message || err}`);
+    return false;
+  }
+}
+
+const quem = () => auth.currentUser?.email || '';
+
+// Cria a cautela e reserva o próximo número numa transação, para que dois
+// computadores salvando ao mesmo tempo nunca recebam o mesmo número.
+function criarCautela(dados) {
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(contador);
+    const numero = (snap.exists() ? snap.data().ultimo || 0 : 0) + 1;
+    tx.set(contador, { ultimo: numero });
+    tx.set(doc(colecao), {
+      ...dados, numero, criadoPor: quem(), criadoEm: serverTimestamp(),
+      atualizadoPor: quem(), atualizadoEm: serverTimestamp(),
+    });
+  });
+}
+
+function atualizarCautela(id, dados) {
+  return updateDoc(doc(colecao, id), { ...dados, atualizadoPor: quem(), atualizadoEm: serverTimestamp() });
+}
+
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = Object.fromEntries(new FormData(form));
   if (f.prevista < f.retirada) {
@@ -258,13 +290,11 @@ form.addEventListener('submit', (e) => {
     cautelante: f.cautelante.trim(),
     obs: f.obs.trim(),
   };
-  if (f.id) {
-    Object.assign(cautelas.find((c) => c.id === f.id), dados);
-  } else {
-    cautelas.push({ id: novoId(), numero: proximoNumero(), ...dados });
-  }
-  modal.close();
-  atualizarTudo();
+  const botao = form.querySelector('button[type=submit]');
+  botao.disabled = true;
+  const ok = await gravar(() => (f.id ? atualizarCautela(f.id, dados) : criarCautela(dados)));
+  botao.disabled = false;
+  if (ok) modal.close();
 });
 
 function mostrarErro(msg) {
@@ -274,23 +304,20 @@ function mostrarErro(msg) {
 }
 
 function registrarDevolucao(c) {
-  c.devolvida = hojeIso() < c.retirada ? c.retirada : hojeIso();
-  atualizarTudo();
+  const data = hojeIso() < c.retirada ? c.retirada : hojeIso();
+  return gravar(() => atualizarCautela(c.id, { devolvida: data }));
 }
 
 $('#btn-cancelar').addEventListener('click', () => modal.close());
-$('#btn-devolver').addEventListener('click', () => {
+$('#btn-devolver').addEventListener('click', async () => {
   const c = cautelas.find((x) => x.id === form.elements.id.value);
-  if (c) registrarDevolucao(c);
-  modal.close();
+  if (c && await registrarDevolucao(c)) modal.close();
 });
-$('#btn-excluir').addEventListener('click', () => {
+$('#btn-excluir').addEventListener('click', async () => {
   const id = form.elements.id.value;
   const c = cautelas.find((x) => x.id === id);
   if (c && confirm(`Excluir a cautela nº ${c.numero} (${c.material})?`)) {
-    cautelas = cautelas.filter((x) => x.id !== id);
-    modal.close();
-    atualizarTudo();
+    if (await gravar(() => deleteDoc(doc(colecao, id)))) modal.close();
   }
 });
 
@@ -304,8 +331,12 @@ function baixar(nome, conteudo, tipo) {
   URL.revokeObjectURL(url);
 }
 
+const CAMPOS = ['id', 'numero', 'material', 'patrimonio', 'quantidade', 'responsavel', 'identificacao',
+  'retirada', 'prevista', 'devolvida', 'cautelante', 'obs'];
+const soCampos = (c) => Object.fromEntries(CAMPOS.map((k) => [k, c[k] ?? '']));
+
 $('#btn-export').addEventListener('click', () => {
-  baixar(`cautelas-${hojeIso()}.json`, JSON.stringify(cautelas, null, 2), 'application/json');
+  baixar(`cautelas-${hojeIso()}.json`, JSON.stringify(cautelas.map(soCampos), null, 2), 'application/json');
 });
 
 $('#btn-csv').addEventListener('click', () => {
@@ -318,21 +349,39 @@ $('#btn-csv').addEventListener('click', () => {
   baixar(`cautelas-${hojeIso()}.csv`, '﻿' + [cab.map(esc).join(';'), ...linhas].join('\r\n'), 'text/csv');
 });
 
+// Importa um backup JSON: cautelas com o mesmo id são atualizadas, as demais são adicionadas.
 $('#btn-import').addEventListener('change', async (e) => {
   const arquivo = e.target.files[0];
   e.target.value = '';
   if (!arquivo) return;
+  let dados;
   try {
-    const dados = JSON.parse(await arquivo.text());
+    dados = JSON.parse(await arquivo.text());
     const validos = Array.isArray(dados) && dados.every((c) => c && c.id && c.material && c.retirada && c.prevista);
     if (!validos) throw new Error('formato');
-    if (confirm(`Importar ${dados.length} cautela(s)? Os dados atuais serão substituídos.`)) {
-      cautelas = dados;
-      atualizarTudo();
-    }
   } catch {
     alert('Arquivo inválido. Use um backup JSON gerado por este sistema.');
+    return;
   }
+  if (!confirm(`Importar ${dados.length} cautela(s)? Cautelas já existentes com o mesmo código serão atualizadas.`)) return;
+  await gravar(async () => {
+    for (let i = 0; i < dados.length; i += 400) {
+      const lote = writeBatch(db);
+      for (const c of dados.slice(i, i + 400)) {
+        const { id, ...resto } = soCampos(c);
+        lote.set(doc(colecao, String(id)), {
+          ...resto, quantidade: Number(resto.quantidade) || 1, numero: Number(resto.numero) || 0,
+          atualizadoPor: quem(), atualizadoEm: serverTimestamp(),
+        });
+      }
+      await lote.commit();
+    }
+    const maior = dados.reduce((m, c) => Math.max(m, Number(c.numero) || 0), 0);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(contador);
+      if (!snap.exists() || (snap.data().ultimo || 0) < maior) tx.set(contador, { ultimo: maior });
+    });
+  });
 });
 
 // ---------- Navegação ----------
@@ -356,8 +405,80 @@ $('#filtro-status').addEventListener('change', renderLista);
 $('#btn-nova').addEventListener('click', () => abrirModal());
 $('#dia-nova').addEventListener('click', () => abrirModal(null, diaSelecionado));
 
+// ---------- Login ----------
+function mostrarTela(qual) {
+  $('#tela-aviso').hidden = qual !== 'aviso';
+  $('#tela-login').hidden = qual !== 'login';
+  $('#app').hidden = qual !== 'app';
+}
+
+function escutarCautelas() {
+  pararEscuta = onSnapshot(colecao, { includeMetadataChanges: true }, (snap) => {
+    cautelas = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const sync = $('#sync');
+    if (!sync.classList.contains('salvando')) {
+      sync.className = snap.metadata.fromCache ? 'sync offline' : 'sync';
+      sync.textContent = snap.metadata.fromCache ? '● Sem conexão' : '● Online';
+    }
+    atualizarTudo();
+  }, (err) => {
+    console.error(err);
+    $('#sync').className = 'sync offline';
+    $('#sync').textContent = '● Sem permissão';
+    alert(`Não foi possível ler as cautelas: ${err.message || err}`);
+  });
+}
+
+$('#form-login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const erro = $('#login-erro');
+  erro.hidden = true;
+  try {
+    await signInWithEmailAndPassword(auth, f.get('email').trim(), f.get('senha'));
+  } catch {
+    erro.textContent = 'E-mail ou senha incorretos.';
+    erro.hidden = false;
+  }
+});
+
+$('#btn-esqueci').addEventListener('click', async () => {
+  const email = $('#form-login').elements.email.value.trim();
+  const erro = $('#login-erro');
+  if (!email) {
+    erro.textContent = 'Digite seu e-mail acima e clique novamente.';
+    erro.hidden = false;
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    erro.textContent = 'Se o e-mail estiver cadastrado, você receberá um link para criar uma nova senha.';
+  } catch {
+    erro.textContent = 'Não foi possível enviar o e-mail. Confira o endereço.';
+  }
+  erro.hidden = false;
+});
+
+$('#btn-sair').addEventListener('click', () => signOut(auth));
+
 // ---------- Inicialização ----------
 $('#cal-weekdays').append(...DIAS_SEMANA.map((d) => el('div', {}, d)));
-renderStats();
-renderCalendario();
-renderLista();
+
+if (!configurado) {
+  $('#aviso-texto').textContent =
+    'Falta configurar o Firebase: preencha o arquivo firebase-config.js (veja o README).';
+} else {
+  onAuthStateChanged(auth, (usuario) => {
+    if (pararEscuta) { pararEscuta(); pararEscuta = null; }
+    cautelas = [];
+    if (usuario) {
+      $('#usuario').textContent = usuario.email;
+      mostrarTela('app');
+      atualizarTudo();
+      escutarCautelas();
+    } else {
+      modal.close();
+      mostrarTela('login');
+    }
+  });
+}

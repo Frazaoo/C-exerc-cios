@@ -7,12 +7,37 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Tela de login -->
+  <section id="tela-login" class="login" hidden>
+    <form id="form-login" class="login-card">
+      <h1>Gestão de Cautelas</h1>
+      <p class="muted">Entre com seu e-mail e senha.</p>
+      <label>E-mail<input name="email" type="email" required autocomplete="username"></label>
+      <label>Senha<input name="senha" type="password" required autocomplete="current-password"></label>
+      <p id="login-erro" class="erro" hidden></p>
+      <button type="submit" class="btn primary">Entrar</button>
+      <button type="button" id="btn-esqueci" class="link">Esqueci minha senha</button>
+    </form>
+  </section>
+
+  <!-- Aviso de configuração pendente / carregamento -->
+  <section id="tela-aviso" class="login">
+    <div class="login-card">
+      <h1>Gestão de Cautelas</h1>
+      <p id="aviso-texto" class="muted">Carregando…</p>
+    </div>
+  </section>
+
+  <div id="app" hidden>
   <header class="topbar">
     <h1>Gestão de Cautelas</h1>
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="calendario" role="tab">Calendário</button>
       <button class="tab" data-view="lista" role="tab">Lista</button>
     </nav>
+    <span id="sync" class="sync" title="Sincronização">● Online</span>
+    <span id="usuario" class="muted"></span>
+    <button id="btn-sair" class="btn small">Sair</button>
     <button id="btn-nova" class="btn primary">+ Nova cautela</button>
   </header>
 
@@ -64,7 +89,7 @@
         <div class="spacer"></div>
         <button id="btn-csv" class="btn">Exportar CSV</button>
         <button id="btn-export" class="btn">Backup (JSON)</button>
-        <label class="btn">Importar<input type="file" id="btn-import" accept="application/json" hidden></label>
+        <label class="btn">Importar JSON<input type="file" id="btn-import" accept="application/json" hidden></label>
       </div>
       <div class="table-wrap">
         <table>
@@ -80,6 +105,7 @@
       </div>
     </section>
   </main>
+  </div>
 
   <!-- Modal de cadastro/edição -->
   <dialog id="modal">
@@ -129,6 +155,6 @@
     </form>
   </dialog>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
