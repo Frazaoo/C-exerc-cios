@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestão de Cautelas</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Tela de login -->
+  <section id="tela-login" class="login" hidden>
+    <form id="form-login" class="login-card">
+      <h1>Gestão de Cautelas</h1>
+      <p class="muted">Entre com seu e-mail e senha.</p>
+      <label>E-mail<input name="email" type="email" required autocomplete="username"></label>
+      <label>Senha<input name="senha" type="password" required autocomplete="current-password"></label>
+      <p id="login-erro" class="erro" hidden></p>
+      <button type="submit" class="btn primary">Entrar</button>
+      <button type="button" id="btn-esqueci" class="link">Esqueci minha senha</button>
+    </form>
+  </section>
+
+  <!-- Aviso de configuração pendente / carregamento -->
+  <section id="tela-aviso" class="login">
+    <div class="login-card">
+      <h1>Gestão de Cautelas</h1>
+      <p id="aviso-texto" class="muted">Carregando…</p>
+    </div>
+  </section>
+
+  <div id="app" hidden>
+  <header class="topbar">
+    <h1>Gestão de Cautelas</h1>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="calendario" role="tab">Calendário</button>
+      <button class="tab" data-view="lista" role="tab">Lista</button>
+    </nav>
+    <span id="sync" class="sync" title="Sincronização">● Online</span>
+    <span id="usuario" class="muted"></span>
+    <button id="btn-sair" class="btn small">Sair</button>
+    <button id="btn-nova" class="btn primary">+ Nova cautela</button>
+  </header>
+
+  <section class="stats">
+    <div class="stat"><span id="st-ativas">0</span><small>Ativas</small></div>
+    <div class="stat warn"><span id="st-hoje">0</span><small>Devolução hoje</small></div>
+    <div class="stat danger"><span id="st-atrasadas">0</span><small>Atrasadas</small></div>
+    <div class="stat ok"><span id="st-devolvidas">0</span><small>Devolvidas</small></div>
+  </section>
+
+  <main>
+    <!-- Calendário -->
+    <section id="view-calendario" class="view">
+      <div class="cal-toolbar">
+        <div class="cal-nav">
+          <button id="cal-prev" class="btn" aria-label="Mês anterior">‹</button>
+          <button id="cal-hoje" class="btn">Hoje</button>
+          <button id="cal-next" class="btn" aria-label="Próximo mês">›</button>
+          <h2 id="cal-titulo"></h2>
+        </div>
+        <div class="legend">
+          <label><input type="checkbox" id="f-retiradas" checked> <i class="dot retirada"></i>Retiradas</label>
+          <label><input type="checkbox" id="f-devolucoes" checked> <i class="dot prevista"></i>Devoluções previstas</label>
+          <label><input type="checkbox" id="f-devolvidas" checked> <i class="dot devolvida"></i>Devolvidas</label>
+        </div>
+      </div>
+      <div class="cal-grid" id="cal-weekdays"></div>
+      <div class="cal-grid" id="cal-dias"></div>
+
+      <aside id="dia-painel" class="dia-painel" hidden>
+        <div class="dia-painel-head">
+          <h3 id="dia-titulo"></h3>
+          <button id="dia-nova" class="btn primary small">+ Cautela neste dia</button>
+        </div>
+        <ul id="dia-lista" class="dia-lista"></ul>
+      </aside>
+    </section>
+
+    <!-- Lista -->
+    <section id="view-lista" class="view" hidden>
+      <div class="list-toolbar">
+        <input type="search" id="busca" placeholder="Buscar por material, patrimônio, responsável…">
+        <select id="filtro-status">
+          <option value="">Todos os status</option>
+          <option value="ativa">Ativas</option>
+          <option value="atrasada">Atrasadas</option>
+          <option value="devolvida">Devolvidas</option>
+        </select>
+        <div class="spacer"></div>
+        <button id="btn-csv" class="btn">Exportar CSV</button>
+        <button id="btn-export" class="btn">Backup (JSON)</button>
+        <label class="btn">Importar JSON<input type="file" id="btn-import" accept="application/json" hidden></label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nº</th><th>Material</th><th>Patrimônio/Série</th><th>Qtd</th>
+              <th>Responsável</th><th>Retirada</th><th>Devolução prevista</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tabela"></tbody>
+        </table>
+        <p id="lista-vazia" class="empty" hidden>Nenhuma cautela encontrada.</p>
+      </div>
+    </section>
+  </main>
+  </div>
+
+  <!-- Modal de cadastro/edição -->
+  <dialog id="modal">
+    <form id="form" method="dialog">
+      <h2 id="modal-titulo">Nova cautela</h2>
+      <input type="hidden" name="id">
+      <div class="grid2">
+        <label class="full">Material / Equipamento*
+          <input name="material" required maxlength="120">
+        </label>
+        <label>Patrimônio / Nº de série
+          <input name="patrimonio" maxlength="60">
+        </label>
+        <label>Quantidade*
+          <input name="quantidade" type="number" min="1" value="1" required>
+        </label>
+        <label>Responsável (quem retira)*
+          <input name="responsavel" required maxlength="100">
+        </label>
+        <label>Identificação (matrícula, posto, setor…)
+          <input name="identificacao" maxlength="80">
+        </label>
+        <label>Data de retirada*
+          <input name="retirada" type="date" required>
+        </label>
+        <label>Devolução prevista*
+          <input name="prevista" type="date" required>
+        </label>
+        <label>Devolvida em
+          <input name="devolvida" type="date">
+        </label>
+        <label>Entregue por (cautelante)
+          <input name="cautelante" maxlength="100">
+        </label>
+        <label class="full">Observações
+          <textarea name="obs" rows="3" maxlength="500"></textarea>
+        </label>
+      </div>
+      <p id="form-erro" class="erro" hidden></p>
+      <div class="modal-actions">
+        <button type="button" id="btn-excluir" class="btn danger">Excluir</button>
+        <button type="button" id="btn-devolver" class="btn">Registrar devolução hoje</button>
+        <div class="spacer"></div>
+        <button type="button" id="btn-cancelar" class="btn">Cancelar</button>
+        <button type="submit" class="btn primary">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
