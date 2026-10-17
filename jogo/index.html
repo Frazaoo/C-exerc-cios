@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1a1c2c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Sobreviventes da Noite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="hud" hidden>
+  <div id="xpbar"><div id="xpfill"></div><span id="lvl">NV 1</span></div>
+  <div id="toprow">
+    <div id="inv"></div>
+    <div id="stats"><span id="timer">00:00</span><span id="kills">0</span><span id="goldc">0</span></div>
+  </div>
+  <button id="btnPause" data-act="pause" aria-label="Pausar">II</button>
+  <div id="bossbar" hidden><span>O CEIFADOR</span><div id="bossfill"></div></div>
+  <div id="toast"></div>
+</div>
+
+<div id="joy" hidden><div id="knob"></div></div>
+<div id="screen"></div>
+
+<script src="game.js"></script>
+</body>
+</html>

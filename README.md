@@ -56,3 +56,11 @@ o que um usuário cadastra, devolve ou exclui aparece na tela dos outros em segu
 
 O plano gratuito do Firebase (Spark) aguenta com folga o uso de uma seção ou unidade
 (50 mil leituras e 20 mil gravações por dia). Não é preciso cadastrar cartão.
+
+---
+
+## Jogo: Sobreviventes da Noite
+
+A pasta [`jogo/`](jogo/) contém um jogo de sobrevivência em pixel art para celular
+(estilo *Vampire Survivors*) com 5 classes, 9 armas, 10 itens passivos e 9 combos.
+Veja [`jogo/README.md`](jogo/README.md).
