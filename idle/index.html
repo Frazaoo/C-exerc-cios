@@ -18,17 +18,20 @@
   </header>
   <div id="stage">
     <canvas id="cv"></canvas>
-    <div id="lvlBox"><span id="lvl">NV 1</span><div id="xpBar"><div id="xpFill"></div></div></div>
+    <div id="callouts"></div>
   </div>
+  <div id="partyBar"></div>
   <main id="panel"></main>
   <nav id="tabs">
-    <button data-tab="heroi" class="on">HERÓI</button>
+    <button data-tab="party" class="on">PARTY</button>
     <button data-tab="mochila">MOCHILA <b id="bagCount">0</b></button>
     <button data-tab="mercado">MERCADO</button>
   </nav>
 </div>
 <div id="modal"></div>
 <div id="toasts"></div>
+<script src="firebase-config.js"></script>
+<script src="regras.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

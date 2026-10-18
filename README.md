@@ -67,5 +67,6 @@ Veja [`jogo/README.md`](jogo/README.md).
 
 ## Jogo: Saque Infinito
 
-A pasta [`idle/`](idle/) contém um RPG idle em pixel art com mercado de itens entre jogadores.
+A pasta [`idle/`](idle/) contém um RPG idle em pixel art com party de 3 heróis (8 classes),
+pets, fusão de itens e mercado entre jogadores com servidor próprio no Firebase.
 Veja [`idle/README.md`](idle/README.md).

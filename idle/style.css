@@ -37,7 +37,7 @@ img.px { image-rendering: pixelated; }
 
 #app {
   height: 100%;
-  display: grid; grid-template-rows: auto auto 1fr auto;
+  display: grid; grid-template-rows: auto auto auto 1fr auto;
   max-width: 640px; margin: 0 auto;
   background: var(--deep);
 }
@@ -61,12 +61,35 @@ img.px { image-rendering: pixelated; }
 #goldBox::before { content: "● "; }
 
 /* ---------- palco ---------- */
-#stage { position: relative; height: clamp(150px, 30vh, 260px); background: var(--ink); overflow: hidden; }
+#stage { position: relative; height: clamp(170px, 32vh, 280px); background: var(--ink); overflow: hidden; }
 #cv { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
-#lvlBox { position: absolute; left: 8px; top: 8px; display: flex; align-items: center; gap: 6px; }
-#lvl { font: 8px var(--f-display); text-shadow: 1px 1px 0 var(--ink); }
-#xpBar { width: 70px; height: 6px; background: rgba(26, 28, 44, .7); border: 1px solid var(--ink); }
-#xpFill { height: 100%; width: 0; background: var(--sky); }
+#callouts { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.callout {
+  position: absolute; transform: translate(-50%, 0); white-space: nowrap;
+  font: 7px var(--f-display); color: var(--bone); text-shadow: 1px 1px 0 var(--ink), -1px -1px 0 var(--ink);
+  animation: rise 1.2s steps(12) forwards;
+}
+.callout.big { font-size: 12px; animation: pop 1.2s steps(12) forwards; }
+@keyframes rise { 0% { opacity: 0; transform: translate(-50%, 6px); } 15% { opacity: 1; transform: translate(-50%, 0); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -14px); } }
+@keyframes pop { 0% { opacity: 0; transform: translate(-50%, 0) scale(2.4); } 20% { opacity: 1; transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -8px); } }
+
+/* ---------- barra da party ---------- */
+#partyBar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px max(6px, env(safe-area-inset-left, 0px)); background: var(--ink); border-bottom: 2px solid var(--line); }
+.pm {
+  display: grid; grid-template-columns: 24px 1fr; grid-template-rows: auto auto; gap: 2px 6px; align-items: center;
+  background: var(--deep); border: 0; padding: 4px 6px; cursor: pointer; text-align: left; min-width: 0;
+}
+.pm img { grid-row: span 2; width: 24px; height: 28px; }
+.pm .nm { font: 7px var(--f-display); color: var(--bone); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm .nm b { font-weight: normal; color: var(--gold); }
+.pm .bars { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pm .bars > span { display: block; height: 4px; background: var(--ink); }
+.pm .bars > span.xp { height: 2px; }
+.pm .bars i { display: block; height: 100%; width: 0; }
+.pm .hp i { background: var(--moss); }
+.pm .sk i { background: var(--gold); }
+.pm .xp i { background: var(--sky); }
+.pm.dead { opacity: .45; }
 
 /* ---------- painel ---------- */
 #panel {
@@ -158,6 +181,7 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--gold); }
 .mode.live i { background: var(--moss); box-shadow: 0 0 6px var(--moss); }
 .mode b { color: var(--bone); font-weight: normal; }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; box-shadow: 0 0 0 2px var(--ink); }
+.seg.three { grid-template-columns: 1fr 1fr 1fr; }
 .seg button { border: 0; background: var(--panel); padding: 11px 6px; font: 8px var(--f-display); color: var(--mist); cursor: pointer; }
 .seg button.on { background: var(--line); color: var(--gold); }
 .filters { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
@@ -247,3 +271,31 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--gold); }
 }
 .fx.broken img { animation: none; filter: grayscale(1) brightness(.5); transform: rotate(calc(var(--i) * 60deg)) translateY(-40px) rotate(calc(var(--i) * -60deg + 25deg)); }
 @media (prefers-reduced-motion: reduce) { .fx img { animation: none; } }
+
+/* ---------- party e heróis ---------- */
+.chip { display: inline-block; font: 6px/1 var(--f-display); color: var(--ink); background: var(--gold); padding: 3px 4px; vertical-align: middle; }
+.gold-t { color: var(--gold); font-weight: normal; }
+.party { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pcard { display: flex; flex-direction: column; gap: 6px; background: var(--panel); padding: 8px 6px; box-shadow: 0 0 0 2px var(--ink); min-width: 0; }
+.pcard.on { box-shadow: 0 0 0 2px var(--gold); }
+.pcard.empty { justify-content: center; align-items: center; min-height: 120px; }
+.pcard .pick { display: flex; flex-direction: column; align-items: center; gap: 5px; background: none; border: 0; cursor: pointer; padding: 0; }
+.pcard .pick img { width: 48px; height: 56px; }
+.pcard .nm { font: 8px var(--f-display); }
+.pcard .btn { width: 100%; }
+.herobox { display: flex; flex-direction: column; gap: 12px; background: var(--deep); padding: 12px; box-shadow: inset 0 0 0 2px var(--line); }
+.hhead { display: grid; grid-template-columns: 60px 1fr; gap: 12px; align-items: start; }
+.hhead img { width: 60px; height: 70px; background: var(--ink); padding: 4px; }
+.hhead p { margin: 6px 0 0; }
+.hn { font: 10px/1.6 var(--f-display); }
+.roster { display: flex; flex-direction: column; gap: 6px; }
+.rc { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; background: var(--panel); padding: 6px 10px; box-shadow: 0 0 0 2px var(--ink); }
+.rc img { width: 36px; height: 42px; }
+.rc .nm { font: 8px/1.6 var(--f-display); }
+.rc.locked img { filter: brightness(0) invert(.25); }
+.tile img.cl { position: absolute; right: 2px; top: 2px; width: 9px; height: auto; opacity: .9; }
+img.mini { width: 10px; height: 12px; vertical-align: middle; }
+.btn.small { padding: 8px 9px; font-size: 8px; }
+.istats small { display: block; font-size: 10px; color: var(--stone); }
+input[type=text] { font: 12px var(--f-body); color: var(--bone); background: var(--ink); border: 2px solid var(--line); padding: 7px 8px; border-radius: 0; width: 150px; }
+@media (prefers-reduced-motion: reduce) { .callout, .callout.big { animation: none; } }

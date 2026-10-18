@@ -1,0 +1,16 @@
+{
+  "name": "saque-infinito-servidor",
+  "private": true,
+  "description": "Cloud Functions do mercado do Saque Infinito",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "scripts": {
+    "regras": "cp ../regras.js regras.js",
+    "emular": "npm run regras && firebase emulators:start --project demo-saque",
+    "deploy": "firebase deploy --only functions,firestore"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.3.2"
+  }
+}
