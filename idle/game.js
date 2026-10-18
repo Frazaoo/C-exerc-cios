@@ -249,7 +249,7 @@ function freshSave() {
   return {
     v: 1, lvl: 1, xp: 0, gold: 0, zone: 1, maxZone: 1, zk: 0, auto: true, autoScrap: 0,
     equip: { arma: makeItem(1, 0, 'espada') }, bag: [], log: [],
-    kills: 0, found: [0, 0, 0, 0, 0, 0], seen: Date.now(), t: Date.now(),
+    kills: 0, found: [0, 0, 0, 0, 0, 0], pity: [0, 0, 0, 0, 0], fuse: { ok: 0, fail: 0 }, seen: Date.now(), t: Date.now(),
   };
 }
 function cleanSave(o) {
@@ -263,6 +263,8 @@ function cleanSave(o) {
   s.bag = Array.isArray(o.bag) ? o.bag.map(cleanItem).filter(Boolean).slice(0, BAG_MAX) : [];
   s.log = Array.isArray(o.log) ? o.log.filter(e => e && typeof e === 'object').slice(0, 30).map(e => ({ k: e.k === 'compra' ? 'compra' : 'venda', b: BASES[e.b] ? e.b : 'espada', r: clamp(e.r | 0, 0, 5), n: String(e.n || '').slice(0, 40), p: +e.p || 0, npc: !!e.npc, t: +e.t || 0 })) : [];
   if (Array.isArray(o.found)) s.found = RAR.map((_, i) => +o.found[i] || 0);
+  if (Array.isArray(o.pity)) s.pity = s.pity.map((_, i) => clamp(+o.pity[i] || 0, 0, 1));
+  if (o.fuse && typeof o.fuse === 'object') s.fuse = { ok: Math.max(0, +o.fuse.ok || 0), fail: Math.max(0, +o.fuse.fail || 0) };
   return s;
 }
 let S;
@@ -724,8 +726,70 @@ function logTrade(k, it, p, npc) {
   S.log = S.log.slice(0, 30);
 }
 
+/* ---------------------------- FUSÃO ----------------------------
+   6 itens da mesma raridade viram 1 item da raridade seguinte.
+   Quanto mais alta a raridade, menor a chance. Se falhar, os 6 itens
+   se perdem, mas a próxima fusão daquele nível ganha chance extra. */
+const FUSE_N = 6;
+const PLURAL = ['comuns', 'incomuns', 'raros', 'épicos', 'lendários', 'míticos'];
+const FUSE_CHANCE = [0.9, 0.75, 0.55, 0.35, 0.15];   // por raridade de origem
+const FUSE_PITY = [0.05, 0.06, 0.08, 0.08, 0.05];    // chance extra a cada falha
+const FUSE_COST = [1, 3, 8, 20, 60];
+const fuseChance = r => Math.min(0.95, FUSE_CHANCE[r] + S.pity[r]);
+const fuseCost = (r, l) => Math.round((10 + l * 4) * FUSE_COST[r]);
+let forge = [], forging = false, forgeErr = '';
+const forgeItems = () => forge.map(id => S.bag.find(x => x.id === id)).filter(Boolean);
+function forgeLevel(items) { return Math.max(1, Math.round(items.reduce((a, it) => a + it.l, 0) / items.length)); }
+function forgePick(id) {
+  const it = S.bag.find(x => x.id === id);
+  if (!it || it.r >= 5) return;
+  const cur = forgeItems();
+  if (forge.includes(id)) forge = forge.filter(x => x !== id);
+  else if (cur.length && cur[0].r !== it.r) forge = [id];
+  else if (cur.length < FUSE_N) forge.push(id);
+}
+// preenche com os itens mais fracos da raridade que tem mais cópias
+function forgeAuto() {
+  const cur = forgeItems();
+  let r = cur.length ? cur[0].r : -1;
+  if (r < 0) {
+    const n = [0, 0, 0, 0, 0];
+    for (const it of S.bag) if (it.r < 5) n[it.r]++;
+    r = n.findIndex(c => c >= FUSE_N);
+    if (r < 0) return 'Você precisa de 6 itens da mesma raridade';
+  }
+  const pool = S.bag.filter(it => it.r === r && !forge.includes(it.id)).sort((a, b) => a.l - b.l);
+  while (forge.length < FUSE_N && pool.length) forge.push(pool.shift().id);
+  return forge.length < FUSE_N ? `Faltam ${FUSE_N - forge.length} itens ${PLURAL[r]}` : null;
+}
+function doFuse() {
+  const items = forgeItems();
+  if (items.length !== FUSE_N || forging) return null;
+  const r = items[0].r;
+  if (r >= 5 || items.some(it => it.r !== r)) return null;
+  const l = forgeLevel(items), cost = fuseCost(r, l);
+  if (S.gold < cost) return null;
+  S.gold -= cost;
+  S.bag = S.bag.filter(it => !forge.includes(it.id));
+  forge = [];
+  const chance = fuseChance(r), ok = Math.random() < chance;
+  let out = null;
+  if (ok) {
+    // o tipo mais comum entre os 6 itens decide o resultado
+    const cnt = {};
+    for (const it of items) cnt[it.b] = (cnt[it.b] || 0) + 1;
+    const top = Math.max(...Object.values(cnt));
+    out = makeItem(l, r + 1, pick(Object.keys(cnt).filter(b => cnt[b] === top)));
+    S.bag.push(out); S.found[r + 1]++; S.pity[r] = 0; S.fuse.ok++;
+  } else {
+    S.pity[r] = Math.round((S.pity[r] + FUSE_PITY[r]) * 100) / 100; S.fuse.fail++;
+  }
+  saveNow();
+  return { ok, r, items, out, chance };
+}
+
 /* ---------------------------- INTERFACE ---------------------------- */
-let tab = 'heroi', mktView = 'comprar', filt = { s: '', r: 0, o: 'recentes' };
+let tab = 'heroi', mktView = 'comprar', bagView = 'itens', filt = { s: '', r: 0, o: 'recentes' };
 const rv = r => `--r:${RAR[r].c}`;
 function setText(sel, v) { const el = $(sel); if (el.textContent !== v) el.textContent = v; }
 function hud() {
@@ -775,11 +839,68 @@ function heroHtml() {
 }
 
 function bagHtml() {
-  if (!S.bag.length) return `<h3>Mochila 0/${BAG_MAX}</h3><div class="empty">Sua mochila está vazia.<br>Seu herói guarda aqui os itens que encontrar lutando.</div>`;
+  const seg = `<div class="seg"><button data-act="bview" data-v="itens" class="${bagView === 'itens' ? 'on' : ''}">ITENS ${S.bag.length}/${BAG_MAX}</button><button data-act="bview" data-v="forja" class="${bagView === 'forja' ? 'on' : ''}">FUSÃO</button></div>`;
+  if (bagView === 'forja') { const h = forgeHtml(forgeErr); forgeErr = ''; return seg + h; }
+  if (!S.bag.length) return seg + `<div class="empty">Sua mochila está vazia.<br>Seu herói guarda aqui os itens que encontrar lutando.</div>`;
   const list = [...S.bag].sort((a, b) => b.r - a.r || b.l - a.l);
-  let h = `<div class="row"><h3 style="flex:1">Mochila ${S.bag.length}/${BAG_MAX}</h3><button class="btn" data-act="scrapall">SUCATA DOS COMUNS</button></div><div class="grid">`;
+  let h = seg + `<div class="row"><span class="small muted" style="flex:1">Toque num item para equipar, anunciar ou vender.</span><button class="btn" data-act="scrapall">SUCATA DOS COMUNS</button></div><div class="grid">`;
   for (const it of list) h += `<button class="tile r${it.r}" style="${rv(it.r)}" data-act="item" data-src="bag" data-id="${it.id}" aria-label="${esc(itemName(it))}"><img class="px" src="${icon(it, 4)}" alt=""><b>${it.l}</b></button>`;
-  return h + '</div><p class="small muted">Toque num item para equipar, anunciar no mercado ou vender como sucata.</p>';
+  return h + '</div>';
+}
+
+function forgeHtml(err) {
+  forge = forge.filter(id => S.bag.some(x => x.id === id));
+  const items = forgeItems(), r = items.length ? items[0].r : -1;
+  let h = '<div class="forge">';
+  for (let i = 0; i < FUSE_N; i++) {
+    const it = items[i];
+    h += it ? `<button class="tile r${it.r}" style="${rv(it.r)}" data-act="fpick" data-id="${it.id}" aria-label="Tirar ${esc(itemName(it))}"><img class="px" src="${icon(it, 4)}" alt=""><b>${it.l}</b></button>`
+      : '<div class="tile ghost"></div>';
+  }
+  h += '</div>';
+  if (r >= 0) {
+    const l = forgeLevel(items), cost = fuseCost(r, l), ch = fuseChance(r), full = items.length === FUSE_N;
+    h += `<div class="fusebox" style="${rv(r + 1)}">
+      <div class="fuseline"><span style="color:${RAR[r].c}">${FUSE_N}× ${RAR[r].n}</span><span class="muted">→</span><span style="color:${RAR[r + 1].c}">1× ${RAR[r + 1].n}</span></div>
+      <div class="chance"><div style="width:${ch * 100}%"></div><span>${Math.round(ch * 100)}% de chance${S.pity[r] ? ` (+${Math.round(S.pity[r] * 100)}% de bônus)` : ''}</span></div>
+      <div class="stats"><span>Nível do resultado</span><span>${l}</span><span>Custo</span><span style="color:var(--gold)">● ${fmt(cost)}</span></div>
+      <p class="small muted">Se falhar, os ${FUSE_N} itens se perdem e a próxima fusão de itens ${PLURAL[r]} ganha +${Math.round(FUSE_PITY[r] * 100)}% de chance.</p>
+      ${err ? `<p class="err">${esc(err)}</p>` : ''}
+      <div class="row"><button class="btn gold" data-act="fuse" ${!full || S.gold < cost ? 'disabled' : ''}>${!full ? `FALTAM ${FUSE_N - items.length}` : S.gold < cost ? 'OURO INSUFICIENTE' : 'FUNDIR'}</button>
+      ${full ? '' : '<button class="btn" data-act="fauto">COMPLETAR</button>'}<button class="btn" data-act="fclear">LIMPAR</button></div></div>`;
+  } else {
+    h += `<p class="small muted">Escolha ${FUSE_N} itens da mesma raridade para tentar criar um item da raridade seguinte.</p>
+      ${err ? `<p class="err">${esc(err)}</p>` : ''}<div class="row"><button class="btn gold" data-act="fauto">ESCOLHER AUTOMÁTICO</button></div>`;
+  }
+  const pool = S.bag.filter(it => it.r < 5).sort((a, b) => a.r - b.r || a.l - b.l);
+  h += pool.length ? '<div class="grid">' + pool.map(it => {
+    const sel = forge.includes(it.id), dim = r >= 0 && it.r !== r;
+    return `<button class="tile r${it.r} ${sel ? 'sel' : ''} ${dim ? 'dim' : ''}" style="${rv(it.r)}" data-act="fpick" data-id="${it.id}" aria-pressed="${sel}" aria-label="${esc(itemName(it))}"><img class="px" src="${icon(it, 4)}" alt=""><b>${it.l}</b></button>`;
+  }).join('') + '</div>' : '<div class="empty">Nenhum item para fundir. Itens míticos já estão no topo.</div>';
+  h += `<h3>Chances</h3><div class="stats">${FUSE_CHANCE.map((c, i) => `<span><span style="color:${RAR[i].c}">${RAR[i].n}</span> → <span style="color:${RAR[i + 1].c}">${RAR[i + 1].n}</span></span><span>${Math.round(fuseChance(i) * 100)}%</span>`).join('')}
+    <span>Fusões: sucessos · falhas</span><span>${S.fuse.ok} · ${S.fuse.fail}</span></div>`;
+  return h;
+}
+function openFuseResult(res) {
+  const ring = res.items.map((it, i) => `<img class="px" style="--i:${i}" src="${icon(it, 3)}" alt="">`).join('');
+  openSheet(`<h3>Fundindo...</h3><div class="fx">${ring}</div>`, RAR[res.r + 1].c);
+  forging = true;
+  setTimeout(() => {
+    forging = false;
+    if (res.ok) {
+      sheetCtx = { src: 'bag', id: res.out.id };
+      openSheet(`<h3 style="color:${RAR[res.r + 1].c}">SUCESSO!</h3>${itemHead(res.out)}${compareHtml(res.out)}
+        <div class="row"><button class="btn green" data-act="equip">EQUIPAR</button><button class="btn" data-act="close">GUARDAR</button></div>`, RAR[res.r + 1].c);
+      toast(`Fusão: ${itemName(res.out)}!`, RAR[res.r + 1].c);
+    } else {
+      openSheet(`<h3 style="color:var(--r5)">A FUSÃO FALHOU</h3>
+        <div class="fx broken">${ring}</div>
+        <p class="small">Os ${FUSE_N} itens ${PLURAL[res.r]} viraram pó.</p>
+        <p class="small muted">A próxima fusão de itens ${PLURAL[res.r]} agora tem ${Math.round(fuseChance(res.r) * 100)}% de chance.</p>
+        <div class="row"><button class="btn" data-act="close">OK</button></div>`, RAR[5].c);
+    }
+    render();
+  }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 300 : 1300);
 }
 
 function marketHtml() {
@@ -901,6 +1022,11 @@ document.addEventListener('click', async ev => {
   if (a === 'item') return openItem(b.dataset.src, b.dataset.id);
   if (a === 'listing') return openListing(b.dataset.id);
   if (a === 'mview') { mktView = b.dataset.v; render(); return; }
+  if (a === 'bview') { bagView = b.dataset.v; render(); return; }
+  if (a === 'fpick') { forgePick(b.dataset.id); render(); return; }
+  if (a === 'fclear') { forge = []; render(); return; }
+  if (a === 'fauto') { forgeErr = forgeAuto() || ''; render(); return; }
+  if (a === 'fuse') { const res = doFuse(); if (res) openFuseResult(res); render(); return; }
   if (a === 'zonedown' || a === 'zoneup') {
     S.zone = clamp(S.zone + (a === 'zoneup' ? 1 : -1), 1, S.maxZone); S.zk = 0; B.enemy = null; B.spawnT = 0.5;
     saveSoon(); render(); return;

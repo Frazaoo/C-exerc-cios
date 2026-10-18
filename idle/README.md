@@ -11,6 +11,20 @@ num **mercado** com preços definidos por eles.
 - **Saque:** 11 tipos de item em 6 espaços (arma, cabeça, armadura, botas, anel, amuleto) e
   6 raridades: Comum, Incomum, Raro, Épico, Lendário e Mítico. Cada raridade acima de Comum traz
   um atributo extra. Itens míticos têm nome próprio. Cada item tem um número de série (Nº 0001 a 9999).
+- **Fusão:** 6 itens da mesma raridade viram 1 item da raridade seguinte, com o nível médio deles
+  e o tipo que mais aparece entre os 6. Cada tentativa custa ouro e pode falhar:
+
+  | Fusão | Chance | Bônus por falha |
+  |---|---|---|
+  | Comum → Incomum | 90% | +5% |
+  | Incomum → Raro | 75% | +6% |
+  | Raro → Épico | 55% | +8% |
+  | Épico → Lendário | 35% | +8% |
+  | Lendário → Mítico | 15% | +5% |
+
+  Se falhar, os 6 itens se perdem, mas a próxima fusão daquele nível ganha o bônus da tabela
+  (acumula até 95% e volta ao normal no próximo sucesso). As chances ficam em `FUSE_CHANCE`
+  e `FUSE_PITY` no `game.js`.
 - **Progresso offline:** ao voltar, o jogo calcula até 12 h de luta (ouro, experiência e itens).
 - **Mercado:**
   - anuncie qualquer item da mochila pelo preço que quiser;
@@ -54,3 +68,4 @@ Hoje o jogo confia no aparelho de cada jogador. Para um mercado público:
 - `BASES` e `STATS`: tipos de item e atributos. `MITICOS` guarda os nomes únicos.
 - `BIOMES` e `enemyFor()`: biomas, inimigos e curva de dificuldade.
 - `Market`: anunciar, comprar, cancelar, receber pagamento e mercadores NPC.
+- `doFuse()`, `FUSE_CHANCE`, `FUSE_PITY` e `FUSE_COST`: regras da fusão.
