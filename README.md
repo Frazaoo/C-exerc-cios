@@ -64,3 +64,8 @@ O plano gratuito do Firebase (Spark) aguenta com folga o uso de uma seção ou u
 A pasta [`jogo/`](jogo/) contém um jogo de sobrevivência em pixel art para celular
 (estilo *Vampire Survivors*) com 5 classes, 9 armas, 10 itens passivos e 9 combos.
 Veja [`jogo/README.md`](jogo/README.md).
+
+## Jogo: Saque Infinito
+
+A pasta [`idle/`](idle/) contém um RPG idle em pixel art com mercado de itens entre jogadores.
+Veja [`idle/README.md`](idle/README.md).
